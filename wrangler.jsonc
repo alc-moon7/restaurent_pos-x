@@ -4,9 +4,14 @@
   "name": "moon-test-4-menu",
   "compatibility_date": "2026-05-08",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
   "routes": [
     {
       "pattern": "pos.moonx.dev",
+      "custom_domain": true
+    },
+    {
+      "pattern": "menu.moonx.dev",
       "custom_domain": true
     }
   ],
@@ -15,7 +20,7 @@
     "NEXT_PUBLIC_RESTAURANT_ID": "rest_c46f1be2fa034b11b0",
     "NEXT_PUBLIC_OUTLET_ID": "outlet_0884a3c2b8314bfb9c",
     "NEXT_PUBLIC_DEFAULT_TABLE_ID": "A1",
-    "NEXT_PUBLIC_MENU_BASE_URL": "https://pos.moonx.dev"
+    "NEXT_PUBLIC_MENU_BASE_URL": "https://menu.moonx.dev"
   },
   "assets": {
     "directory": ".open-next/assets",
