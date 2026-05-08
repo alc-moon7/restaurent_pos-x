@@ -4,6 +4,19 @@
   "name": "moon-test-4-menu",
   "compatibility_date": "2026-05-08",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    {
+      "pattern": "pos.moonx.dev",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "PLATFORM_API_BASE_URL": "https://vnhxfvtpkgykatvbrczn.supabase.co/functions/v1/pos-api",
+    "NEXT_PUBLIC_RESTAURANT_ID": "rest_c46f1be2fa034b11b0",
+    "NEXT_PUBLIC_OUTLET_ID": "outlet_0884a3c2b8314bfb9c",
+    "NEXT_PUBLIC_DEFAULT_TABLE_ID": "A1",
+    "NEXT_PUBLIC_MENU_BASE_URL": "https://pos.moonx.dev"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
