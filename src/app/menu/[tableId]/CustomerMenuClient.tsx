@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Badge, Button } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -196,8 +197,8 @@ export default function CustomerMenuClient({
   const [showTracking, setShowTracking] = React.useState(false);
   const [readyBanner, setReadyBanner] = React.useState<string | null>(null);
   const [waiterCalling, setWaiterCalling] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState("");
   const publicCloudMode = Boolean(restaurantId && outletId);
+  const cartPortalTarget = typeof document === "undefined" ? null : document.body;
   const socket = useSocket("/customer", tableId ? { tableId: String(tableId) } : undefined, {
     enabled: !publicCloudMode,
   });
@@ -334,6 +335,15 @@ export default function CustomerMenuClient({
     if (!tableId) return;
     setCartTableId(tableId);
   }, [setCartTableId, tableId]);
+
+  React.useEffect(() => {
+    if (!cartOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [cartOpen]);
 
   const evaluateCustomerCoordinates = React.useCallback(
     (latitude: number, longitude: number) => {
@@ -517,15 +527,8 @@ export default function CustomerMenuClient({
       activeCategory === "all"
         ? items
         : items.filter((item) => item.category_id === activeCategory);
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return scoped;
-    return scoped.filter((item) => {
-      return [item.name, item.description ?? "", item.categoryName]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [activeCategory, categories, searchQuery]);
+    return scoped;
+  }, [activeCategory, categories]);
 
   const itemCount = React.useMemo(
     () => cartItems.reduce((acc, line) => acc + line.quantity, 0),
@@ -902,15 +905,6 @@ export default function CustomerMenuClient({
             </div>
           </div>
 
-          <div className="mt-3 rounded-full border border-black/10 bg-white px-3 py-2 shadow-[0_6px_16px_rgba(0,0,0,0.05)]">
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search food"
-              className="w-full bg-transparent text-sm font-semibold text-foreground outline-none placeholder:text-secondary/70"
-            />
-          </div>
-
           <div className="mt-3 overflow-x-auto pb-1 no-scrollbar">
             <div className="flex gap-2">
               <button
@@ -1075,7 +1069,8 @@ export default function CustomerMenuClient({
         </div>
       ) : null}
 
-      <div className={["fixed inset-0 z-50", cartOpen ? "" : "pointer-events-none"].join(" ")}>
+      {cartPortalTarget ? createPortal(
+        <div className={["fixed inset-0 z-[9999]", cartOpen ? "" : "pointer-events-none"].join(" ")}>
         <div
           className={[
             "absolute inset-0 bg-secondary/60 backdrop-blur-sm transition-opacity",
@@ -1237,7 +1232,9 @@ export default function CustomerMenuClient({
             </div>
           </div>
         </div>
-      </div>
+        </div>,
+        cartPortalTarget
+      ) : null}
     </div>
   );
 }
