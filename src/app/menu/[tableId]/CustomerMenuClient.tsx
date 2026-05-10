@@ -1036,19 +1036,28 @@ export default function CustomerMenuClient({
 
       {itemCount > 0 ? (
         <div className="fixed bottom-3 left-3 right-3 z-50 mx-auto max-w-md">
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="flex h-[52px] w-full items-center justify-between rounded-full bg-primary px-4 text-foreground shadow-[0_10px_28px_rgba(0,0,0,0.18)]"
-          >
-            <span className="text-xs font-black">
-              {itemCount} item{itemCount === 1 ? "" : "s"}
-            </span>
-            <span className="text-sm font-black tracking-tight">View cart</span>
-            <span className="text-xs font-black">
-              {formatMoney(total, config.currency)}
-            </span>
-          </button>
+          <div className="flex h-[56px] items-center gap-2 rounded-full border border-black/10 bg-white p-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="flex h-full min-w-0 flex-1 items-center justify-between rounded-full px-3 text-foreground"
+            >
+              <span className="text-xs font-black">
+                {itemCount} item{itemCount === 1 ? "" : "s"}
+              </span>
+              <span className="truncate pl-2 text-xs font-black">
+                {formatMoney(total, config.currency)}
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={placingOrder || cartItems.length === 0 || unavailableCartItemIds.length > 0}
+              onClick={() => void submitOrder()}
+              className="flex h-full min-w-[132px] items-center justify-center rounded-full bg-primary px-4 text-sm font-black text-foreground disabled:opacity-60"
+            >
+              {placingOrder ? "Placing..." : "Place Order"}
+            </button>
+          </div>
         </div>
       ) : null}
 
