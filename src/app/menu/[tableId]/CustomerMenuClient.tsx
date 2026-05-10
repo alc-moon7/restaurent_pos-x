@@ -889,9 +889,15 @@ export default function CustomerMenuClient({
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
-                className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-black text-foreground shadow-[0_6px_14px_rgba(0,0,0,0.08)]"
+                className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-left text-xs font-black text-foreground shadow-[0_6px_14px_rgba(0,0,0,0.08)]"
+                aria-label="Open cart"
               >
-                Cart {itemCount}
+                <span className="block text-[10px] uppercase tracking-[0.08em] text-secondary">
+                  View cart
+                </span>
+                <span className="block leading-tight">
+                  {itemCount > 0 ? `${itemCount} item${itemCount === 1 ? "" : "s"}` : "Empty"}
+                </span>
               </button>
             </div>
           </div>
@@ -1080,12 +1086,12 @@ export default function CustomerMenuClient({
 
         <div
           className={[
-            "absolute bottom-0 left-0 right-0 max-h-[88vh] rounded-t-[28px] bg-white shadow-[0_-18px_50px_rgba(0,0,0,0.16)] transition-transform",
+            "absolute bottom-0 left-0 right-0 flex max-h-[88svh] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-18px_50px_rgba(0,0,0,0.16)] transition-transform",
             cartOpen ? "translate-y-0" : "translate-y-full",
           ].join(" ")}
         >
-          <div className="mx-auto max-w-md px-4 pb-6 pt-4">
-            <div className="flex items-center justify-between gap-3">
+          <div className="mx-auto flex max-h-[88svh] w-full max-w-md flex-col px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4">
+            <div className="shrink-0 flex items-center justify-between gap-3">
               <div>
                 <div className="text-lg font-black tracking-tight text-foreground">Your cart</div>
                 <div className="mt-1 text-xs font-bold text-secondary">
@@ -1101,7 +1107,7 @@ export default function CustomerMenuClient({
               </button>
             </div>
 
-            <div className="mt-4 max-h-[45vh] space-y-3 overflow-auto pr-1">
+            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-auto pr-1">
               {cartItems.map((line) => (
                 <div key={line.menuItem.id} className="rounded-3xl border border-black/10 bg-white p-3 shadow-[0_6px_16px_rgba(0,0,0,0.05)]">
                   <div className="flex items-start justify-between gap-3">
@@ -1168,7 +1174,7 @@ export default function CustomerMenuClient({
               ))}
             </div>
 
-            <div className="mt-4 rounded-3xl border border-black/10 bg-neutral p-4">
+            <div className="mt-4 shrink-0 rounded-3xl border border-black/10 bg-neutral p-4">
               <div className="text-sm font-black text-foreground">Order notes</div>
               <textarea
                 value={orderNotes}
