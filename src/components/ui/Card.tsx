@@ -7,7 +7,7 @@ export function Card({ className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "surface-card rounded-[2rem] overflow-hidden",
+        "surface-card rounded-3xl overflow-hidden",
         className
       )}
       {...props}

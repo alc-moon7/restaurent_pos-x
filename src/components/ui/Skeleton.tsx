@@ -11,11 +11,10 @@ export function Skeleton({
   return (
     <div
       className={cn(
-        "bg-gradient-to-r from-secondary/10 via-white/40 to-secondary/10 bg-[length:200%_100%] animate-shimmer rounded-xl",
+        "bg-gradient-to-r from-black/5 via-black/10 to-black/5 bg-[length:200%_100%] animate-shimmer rounded-xl",
         variant === "circle" ? "rounded-full" : "",
         className
       )}
     />
   );
 }
-

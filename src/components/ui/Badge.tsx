@@ -8,11 +8,11 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  success: "bg-success/12 text-primary border border-success/16",
+  success: "bg-success/10 text-foreground border border-success/20",
   warning: "bg-warning/20 text-foreground border border-warning/24",
-  danger: "bg-danger/14 text-danger border border-danger/18",
-  info: "bg-info/14 text-info border border-info/16",
-  neutral: "bg-white/82 text-primary border border-primary/10",
+  danger: "bg-danger/10 text-foreground border border-danger/18",
+  info: "bg-primary text-foreground border border-black/10",
+  neutral: "bg-white text-foreground border border-black/10",
 };
 
 export function Badge({
@@ -23,7 +23,7 @@ export function Badge({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] backdrop-blur-sm",
+        "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em]",
         variantClasses[variant],
         className
       )}

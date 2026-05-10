@@ -1,10 +1,13 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import * as React from "react";
 import { Badge, Button } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { cn } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
 import { useSocket } from "@/hooks/useSocket";
 
@@ -78,16 +81,6 @@ function formatMoney(value: number, currency = "USD") {
     currency,
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function placeholderTone(index: number) {
-  const tones = [
-    "from-primary/30 via-secondary/20 to-primary/10",
-    "from-info/30 via-primary/15 to-info/10",
-    "from-success/30 via-primary/15 to-success/10",
-    "from-warning/30 via-primary/15 to-warning/10",
-  ];
-  return tones[index % tones.length];
 }
 
 function stageFromOrder(order: ApiOrder | null): StatusStage {
@@ -190,7 +183,6 @@ export default function CustomerMenuClient({
   const [orderNotes, setOrderNotes] = React.useState("");
   const [placingOrder, setPlacingOrder] = React.useState(false);
   const [placeOrderError, setPlaceOrderError] = React.useState<string | null>(null);
-  const [unavailableCartItemIds, setUnavailableCartItemIds] = React.useState<string[]>([]);
   const [lastOrderPayload, setLastOrderPayload] = React.useState<{
     id?: string;
     outletId?: string;
@@ -204,6 +196,7 @@ export default function CustomerMenuClient({
   const [showTracking, setShowTracking] = React.useState(false);
   const [readyBanner, setReadyBanner] = React.useState<string | null>(null);
   const [waiterCalling, setWaiterCalling] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
   const publicCloudMode = Boolean(restaurantId && outletId);
   const socket = useSocket("/customer", tableId ? { tableId: String(tableId) } : undefined, {
     enabled: !publicCloudMode,
@@ -431,12 +424,17 @@ export default function CustomerMenuClient({
 
   React.useEffect(() => {
     if (!geofenceEnforced) {
-      setLocationState("idle");
-      setLocationError(null);
-      return;
+      const timer = window.setTimeout(() => {
+        setLocationState("idle");
+        setLocationError(null);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
 
-    void requestCustomerLocation();
+    const timer = window.setTimeout(() => {
+      void requestCustomerLocation();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [geofenceEnforced, requestCustomerLocation]);
 
   React.useEffect(() => {
@@ -466,38 +464,16 @@ export default function CustomerMenuClient({
     };
   }, [placedOrder, socket, tableId]);
 
-  const syncUnavailableCartItems = React.useCallback(
-    (freshMenu: ApiMenuCategory[]) => {
-      const availability = new Map<string, number>();
-      for (const cat of freshMenu) {
-        for (const it of cat.items ?? []) {
-          availability.set(it.id, it.available);
-        }
-      }
-      const unavailable = cartItems
-        .map((line) => line.menuItem.id)
-        .filter((id) => (availability.get(id) ?? 0) !== 1);
-      setUnavailableCartItemIds(unavailable);
-    },
-    [cartItems]
-  );
-
   React.useEffect(() => {
     if (!socket) return;
     const handleMenuUpdated = (freshMenu: ApiMenuCategory[]) => {
       setMenu(freshMenu);
-      syncUnavailableCartItems(freshMenu);
     };
     socket.on("menu_updated", handleMenuUpdated);
     return () => {
       socket.off("menu_updated", handleMenuUpdated);
     };
-  }, [socket, syncUnavailableCartItems]);
-
-  React.useEffect(() => {
-    // Also re-evaluate when cart changes (e.g., user removes items).
-    syncUnavailableCartItems(menu);
-  }, [cartItems, menu, syncUnavailableCartItems]);
+  }, [socket]);
 
   React.useEffect(() => {
     if (!placedOrder || !showTracking) return;
@@ -537,9 +513,19 @@ export default function CustomerMenuClient({
     const items = categories.flatMap((category) =>
       category.items.map((item) => ({ ...item, categoryName: category.name }))
     );
-    if (activeCategory === "all") return items;
-    return items.filter((item) => item.category_id === activeCategory);
-  }, [activeCategory, categories]);
+    const scoped =
+      activeCategory === "all"
+        ? items
+        : items.filter((item) => item.category_id === activeCategory);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return scoped;
+    return scoped.filter((item) => {
+      return [item.name, item.description ?? "", item.categoryName]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [activeCategory, categories, searchQuery]);
 
   const itemCount = React.useMemo(
     () => cartItems.reduce((acc, line) => acc + line.quantity, 0),
@@ -552,6 +538,17 @@ export default function CustomerMenuClient({
   const tax = (subtotal * config.tax_rate) / 100;
   const total = subtotal + tax;
   const statusStage = stageFromOrder(placedOrder);
+  const unavailableCartItemIds = React.useMemo(() => {
+    const availability = new Map<string, number>();
+    for (const category of menu) {
+      for (const item of category.items ?? []) {
+        availability.set(item.id, item.available);
+      }
+    }
+    return cartItems
+      .map((line) => line.menuItem.id)
+      .filter((id) => (availability.get(id) ?? 0) !== 1);
+  }, [cartItems, menu]);
 
   async function submitOrder(payload?: {
     id?: string;
@@ -688,25 +685,25 @@ export default function CustomerMenuClient({
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto max-w-5xl px-4 py-4">
-          <div className="section-shell">
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="mt-3 h-10 w-48" />
+        <div className="mx-auto max-w-md px-4 py-4">
+          <div className="rounded-[1.75rem] bg-primary p-4 shadow-[0_10px_26px_rgba(0,0,0,0.10)]">
+            <Skeleton className="h-4 w-28 bg-black/10" />
+            <Skeleton className="mt-3 h-7 w-44 bg-black/10" />
           </div>
-          <div className="mt-4 flex gap-2 overflow-hidden">
+          <div className="mt-4 flex gap-2 overflow-hidden pb-1">
             {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} className="h-10 w-24 rounded-full" />
+              <Skeleton key={index} className="h-9 w-20 rounded-full" />
             ))}
           </div>
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 space-y-3">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="rounded-3xl border border-secondary/10 bg-white p-4">
+              <div key={index} className="rounded-3xl border border-black/10 bg-white p-3 shadow-[0_8px_20px_rgba(0,0,0,0.06)]">
                 <div className="flex gap-3">
-                  <Skeleton className="h-24 w-24 rounded-2xl" />
+                  <Skeleton className="h-[88px] w-[88px] rounded-2xl" />
                   <div className="flex-1">
                     <Skeleton className="h-5 w-40" />
                     <Skeleton className="mt-2 h-4 w-full" />
-                    <Skeleton className="mt-4 h-10 w-32" />
+                    <Skeleton className="mt-4 h-8 w-28" />
                   </div>
                 </div>
               </div>
@@ -766,22 +763,25 @@ export default function CustomerMenuClient({
   if (placedOrder && !showTracking) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-8">
-          <div className="surface-card gradient-aqua rounded-[2rem] p-6">
-            <div className="text-3xl font-black tracking-tight">Order Placed! 🎉</div>
-            <div className="mt-4 text-sm text-secondary/70">
+        <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
+          <div className="rounded-[1.75rem] border border-black/10 bg-white p-5 text-center shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-black">
+              ✓
+            </div>
+            <div className="mt-4 text-2xl font-black tracking-tight">Order placed</div>
+            <div className="mt-2 text-xs font-bold text-secondary">
               Order #{placedOrder.id}
             </div>
-            <div className="mt-2 text-base text-secondary/80">
-              Your food is being prepared. Estimated time: 20-30 minutes.
+            <div className="mt-2 text-sm font-medium text-secondary">
+              We received your order. You can track it from here.
             </div>
 
-            <div className="mt-6 rounded-[1.6rem] border border-[color:var(--border-soft)] bg-white/72 p-4">
-              <div className="text-sm font-bold tracking-tight text-foreground">Ordered Items</div>
+            <div className="mt-5 rounded-3xl border border-black/10 bg-neutral p-4 text-left">
+              <div className="text-sm font-black tracking-tight text-foreground">Items</div>
               <div className="mt-3 space-y-2">
                 {placedOrder.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-secondary/80">
+                    <span className="font-medium text-secondary">
                       {item.quantity}x {item.itemName ?? "Item"}
                     </span>
                     <span className="font-semibold text-foreground">
@@ -792,7 +792,7 @@ export default function CustomerMenuClient({
               </div>
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-5 flex gap-3">
               <Button variant="primary" className="flex-1" onClick={() => setShowTracking(true)}>
                 Track Status
               </Button>
@@ -806,12 +806,12 @@ export default function CustomerMenuClient({
   if (placedOrder && showTracking) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto max-w-2xl px-4 py-6">
-          <div className="surface-card gradient-periwinkle rounded-[2rem] p-6">
+        <div className="mx-auto max-w-md px-4 py-6">
+          <div className="rounded-[1.75rem] border border-black/10 bg-white p-5 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-2xl font-black tracking-tight">Order Status</div>
-                <div className="mt-1 text-sm text-secondary/70">
+                <div className="text-xl font-black tracking-tight">Order status</div>
+                <div className="mt-1 text-xs font-bold text-secondary">
                   Order #{placedOrder.id} • {table.name}
                 </div>
               </div>
@@ -821,12 +821,12 @@ export default function CustomerMenuClient({
             </div>
 
             {readyBanner ? (
-              <div className="mt-5 rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+              <div className="mt-4 rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-sm font-black text-foreground">
                 {readyBanner}
               </div>
             ) : null}
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-5 grid grid-cols-3 gap-2">
               {[
                 { key: "received", label: "Received" },
                 { key: "cooking", label: "Cooking..." },
@@ -840,20 +840,20 @@ export default function CustomerMenuClient({
                   <div
                     key={step.key}
                     className={[
-                      "rounded-2xl border px-3 py-4 text-center",
+                      "rounded-2xl border px-2 py-3 text-center",
                       reached
-                        ? "border-success/25 bg-success/10 text-success"
-                        : "border-secondary/10 bg-background text-secondary/50",
+                        ? "border-black/10 bg-primary text-foreground"
+                        : "border-black/10 bg-white text-secondary",
                     ].join(" ")}
                   >
                     <div className="text-lg font-black">{reached ? "✓" : "…"}</div>
-                    <div className="mt-2 text-sm font-semibold">{step.label}</div>
+                    <div className="mt-1 text-xs font-black">{step.label}</div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-5 flex gap-3">
               <Button variant="ghost" className="flex-1" onClick={() => setShowTracking(false)}>
                 Back
               </Button>
@@ -871,52 +871,51 @@ export default function CustomerMenuClient({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-[color:var(--border-soft)] bg-white/40 backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl px-4 py-4">
-          <div className="gradient-aqua rounded-[2rem] border border-[color:var(--border-soft)] p-5 shadow-[0_18px_36px_rgba(27,91,82,0.07)]">
-            <div className="flex items-start justify-between gap-4">
+      <header className="sticky top-0 z-40 border-b border-black/10 bg-white">
+        <div className="mx-auto max-w-md px-3 py-3">
+          <div className="rounded-[1.6rem] bg-primary p-4 shadow-[0_8px_22px_rgba(0,0,0,0.10)]">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="pill-label">{publicCloudMode ? "Cloud live" : "Table live"}</div>
-                <div className="mt-4 text-sm font-semibold text-secondary/70">
+                <div className="text-[11px] font-black uppercase tracking-[0.12em] text-foreground/70">
+                  {publicCloudMode ? "Online menu" : "Table menu"}
+                </div>
+                <div className="mt-1 truncate text-xl font-black tracking-tight text-foreground">
                   {config.name ?? "Restaurant"}
                 </div>
-                <div className="mt-1 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
-                  {table.name}
-                </div>
-                <div className="mt-2 text-sm text-secondary/65">
-                  {publicCloudMode ? "Order directly from the live cloud menu." : "Menu for your table"}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="pill-label !text-secondary/72 !normal-case !tracking-normal">Fresh menu</span>
-                  <span className="pill-label !text-secondary/72 !normal-case !tracking-normal">{categories.length} categories</span>
-                  {geofenceEnforced ? (
-                    <span className="pill-label !text-secondary/72 !normal-case !tracking-normal">
-                      GPS range {formatDistanceMeters(geofence.gpsRadiusMeters)}
-                    </span>
-                  ) : null}
+                <div className="mt-1 text-xs font-bold text-foreground/70">
+                  Table {table.name} • {categories.length} categories
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
-                className="rounded-full border border-[color:var(--border-soft)] bg-white/82 px-4 py-3 text-sm font-semibold text-secondary/80 shadow-[0_10px_24px_rgba(27,91,82,0.05)]"
+                className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-black text-foreground shadow-[0_6px_14px_rgba(0,0,0,0.08)]"
               >
-                Cart ({itemCount})
+                Cart {itemCount}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 overflow-x-auto pb-1">
+          <div className="mt-3 rounded-full border border-black/10 bg-white px-3 py-2 shadow-[0_6px_16px_rgba(0,0,0,0.05)]">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search food"
+              className="w-full bg-transparent text-sm font-semibold text-foreground outline-none placeholder:text-secondary/70"
+            />
+          </div>
+
+          <div className="mt-3 overflow-x-auto pb-1 no-scrollbar">
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setActiveCategory("all")}
-                className={[
-                  "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                className={cn(
+                  "whitespace-nowrap rounded-full border px-3 py-2 text-xs font-black transition-colors",
                   activeCategory === "all"
-                    ? "border-primary/22 bg-primary/14 text-primary shadow-[0_8px_18px_rgba(27,91,82,0.06)]"
-                    : "border-[color:var(--border-soft)] bg-white/74 text-secondary/80",
-                ].join(" ")}
+                    ? "border-black/10 bg-primary text-foreground"
+                    : "border-black/10 bg-white text-foreground"
+                )}
               >
                 All
               </button>
@@ -925,12 +924,12 @@ export default function CustomerMenuClient({
                   key={category.id}
                   type="button"
                   onClick={() => setActiveCategory(category.id)}
-                  className={[
-                    "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                  className={cn(
+                    "whitespace-nowrap rounded-full border px-3 py-2 text-xs font-black transition-colors",
                     activeCategory === category.id
-                      ? "border-primary/22 bg-primary/14 text-primary shadow-[0_8px_18px_rgba(27,91,82,0.06)]"
-                      : "border-[color:var(--border-soft)] bg-white/74 text-secondary/80",
-                  ].join(" ")}
+                      ? "border-black/10 bg-primary text-foreground"
+                      : "border-black/10 bg-white text-foreground"
+                  )}
                 >
                   {category.name}
                 </button>
@@ -941,110 +940,112 @@ export default function CustomerMenuClient({
       </header>
 
       {readyBanner ? (
-        <div className="mx-auto max-w-5xl px-4 pt-4">
-          <div className="rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+        <div className="mx-auto max-w-md px-3 pt-3">
+          <div className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-black text-foreground">
             {readyBanner}
           </div>
         </div>
       ) : null}
 
-      <main className="mx-auto max-w-5xl px-4 pb-36 pt-5">
-        <div className="space-y-3">
-          {visibleItems.map((item, index) => {
+      <main className="mx-auto max-w-md px-3 pb-28 pt-3">
+        {visibleItems.length === 0 ? (
+          <div className="rounded-3xl border border-black/10 bg-white p-5 text-center shadow-[0_8px_20px_rgba(0,0,0,0.06)]">
+            <div className="text-base font-black">No items found</div>
+            <div className="mt-1 text-sm font-medium text-secondary">
+              Try another category or search term.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleItems.map((item) => {
             const line = cartItems.find((entry) => entry.menuItem.id === item.id) ?? null;
             const quantity = line?.quantity ?? 0;
             return (
               <div
                 key={item.id}
-                className="overflow-hidden rounded-[2rem] border border-[color:var(--border-soft)] bg-white/82 shadow-[0_18px_36px_rgba(27,91,82,0.07)]"
+                className="rounded-3xl border border-black/10 bg-white p-3 shadow-[0_8px_20px_rgba(0,0,0,0.06)]"
               >
-                {item.image ? (
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="h-[180px] w-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className={[
-                      "relative flex h-[180px] w-full items-center justify-center overflow-hidden bg-gradient-to-br text-center",
-                      index % 2 === 0 ? "gradient-aqua" : placeholderTone(index),
-                    ].join(" ")}
-                  >
-                    <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/25 blur-2xl" />
-                    <div className="px-4 text-sm font-black uppercase tracking-wide text-white/90">
+                <div className="flex gap-3">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="h-[92px] w-[92px] shrink-0 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-primary px-2 text-center text-[10px] font-black uppercase tracking-wide text-foreground">
                       {item.categoryName}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-lg font-black tracking-tight text-foreground">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="line-clamp-1 text-base font-black tracking-tight text-foreground">
                         {item.name}
                       </div>
-                      <div className="mt-1 text-sm text-secondary/70">
-                        {item.description || "No description available."}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-black tracking-tight text-foreground">
+                      <div className="shrink-0 text-sm font-black text-foreground">
                         {formatMoney(item.price, config.currency)}
                       </div>
                     </div>
-                  </div>
+                    <div className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-secondary">
+                        {item.description || "No description available."}
+                    </div>
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.08em] text-secondary/80">
+                      {item.categoryName}
+                    </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    {quantity === 0 ? (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => addCartItem(cartMenuItemFromApi(item))}
-                      >
-                        + Add
-                      </Button>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(item.id, quantity - 1)}
-                          className="h-10 w-10 rounded-full border border-[color:var(--border-soft)] bg-white/78 text-secondary/70"
+                    <div className="mt-3 flex items-center justify-end">
+                      {quantity === 0 ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => addCartItem(cartMenuItemFromApi(item))}
                         >
-                          -
-                        </button>
-                        <div className="flex h-10 min-w-12 items-center justify-center rounded-full border border-[color:var(--border-soft)] bg-white/78 font-bold text-foreground">
-                          {quantity}
+                          Add
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2 rounded-full border border-black/10 bg-neutral p-1">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(item.id, quantity - 1)}
+                            className="h-8 w-8 rounded-full bg-white text-lg font-black text-foreground"
+                          >
+                            -
+                          </button>
+                          <div className="min-w-7 text-center text-sm font-black text-foreground">
+                            {quantity}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(item.id, quantity + 1)}
+                            className="h-8 w-8 rounded-full bg-primary text-lg font-black text-foreground"
+                          >
+                            +
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(item.id, quantity + 1)}
-                          className="h-10 w-10 rounded-full border border-[color:var(--border-soft)] bg-white/78 text-secondary/70"
-                        >
-                          +
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </main>
 
       {itemCount > 0 ? (
-        <div className="fixed bottom-4 left-4 right-4 z-50">
+        <div className="fixed bottom-3 left-3 right-3 z-50 mx-auto max-w-md">
           <button
             type="button"
             onClick={() => setCartOpen(true)}
-            className="flex h-14 w-full items-center justify-between rounded-3xl bg-primary px-4 text-white shadow-lg"
+            className="flex h-[52px] w-full items-center justify-between rounded-full bg-primary px-4 text-foreground shadow-[0_10px_28px_rgba(0,0,0,0.18)]"
           >
-            <span className="text-sm font-semibold">
+            <span className="text-xs font-black">
               {itemCount} item{itemCount === 1 ? "" : "s"}
             </span>
-            <span className="text-base font-black tracking-tight">View Cart &amp; Order</span>
-            <span className="text-sm font-semibold">
+            <span className="text-sm font-black tracking-tight">View cart</span>
+            <span className="text-xs font-black">
               {formatMoney(total, config.currency)}
             </span>
           </button>
@@ -1052,7 +1053,7 @@ export default function CustomerMenuClient({
       ) : null}
 
       {!publicCloudMode ? (
-        <div className="fixed bottom-4 left-4 z-50">
+        <div className={cn("fixed left-3 z-50", itemCount > 0 ? "bottom-20" : "bottom-3")}>
           <Button variant="secondary" size="sm" disabled={waiterCalling} onClick={() => void callWaiter()}>
             {waiterCalling ? "Calling..." : "Call Waiter"}
           </Button>
@@ -1070,22 +1071,22 @@ export default function CustomerMenuClient({
 
         <div
           className={[
-            "absolute bottom-0 left-0 right-0 max-h-[88vh] rounded-t-[36px] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,251,248,0.96))] shadow-[0_-24px_60px_rgba(27,91,82,0.12)] backdrop-blur-xl transition-transform",
+            "absolute bottom-0 left-0 right-0 max-h-[88vh] rounded-t-[28px] bg-white shadow-[0_-18px_50px_rgba(0,0,0,0.16)] transition-transform",
             cartOpen ? "translate-y-0" : "translate-y-full",
           ].join(" ")}
         >
-          <div className="mx-auto max-w-3xl px-4 pb-6 pt-4">
+          <div className="mx-auto max-w-md px-4 pb-6 pt-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-lg font-black tracking-tight">Your Cart</div>
-                <div className="mt-1 text-xs text-secondary/60">
+                <div className="text-lg font-black tracking-tight text-foreground">Your cart</div>
+                <div className="mt-1 text-xs font-bold text-secondary">
                   Subtotal {formatMoney(subtotal, config.currency)} • Tax {formatMoney(tax, config.currency)}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCartOpen(false)}
-                className="h-10 w-10 rounded-full border border-[color:var(--border-soft)] bg-white/80 text-secondary/70"
+                className="h-10 w-10 rounded-full border border-black/10 bg-neutral text-lg font-black text-foreground"
               >
                 ×
               </button>
@@ -1093,20 +1094,20 @@ export default function CustomerMenuClient({
 
             <div className="mt-4 max-h-[45vh] space-y-3 overflow-auto pr-1">
               {cartItems.map((line) => (
-                <div key={line.menuItem.id} className="rounded-[1.6rem] border border-[color:var(--border-soft)] bg-white/76 p-3">
+                <div key={line.menuItem.id} className="rounded-3xl border border-black/10 bg-white p-3 shadow-[0_6px_16px_rgba(0,0,0,0.05)]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-bold tracking-tight">
+                      <div className="truncate text-sm font-black tracking-tight text-foreground">
                         {line.menuItem.name}
                       </div>
-                      <div className="mt-1 text-xs text-secondary/60">
+                      <div className="mt-1 text-xs font-bold text-secondary">
                         {formatMoney(line.menuItem.price, config.currency)} each
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => removeCartItem(line.menuItem.id)}
-                      className="text-xs font-semibold text-danger"
+                      className="text-xs font-black text-foreground underline decoration-danger/40"
                     >
                       Remove
                     </button>
@@ -1117,17 +1118,17 @@ export default function CustomerMenuClient({
                       <button
                         type="button"
                         onClick={() => updateCartQuantity(line.menuItem.id, line.quantity - 1)}
-                        className="h-9 w-9 rounded-full border border-[color:var(--border-soft)] bg-white text-secondary/70"
+                        className="h-9 w-9 rounded-full border border-black/10 bg-neutral text-lg font-black text-foreground"
                       >
                         -
                       </button>
-                      <div className="flex h-9 min-w-10 items-center justify-center rounded-full border border-[color:var(--border-soft)] bg-white font-bold text-secondary/80">
+                      <div className="flex h-9 min-w-10 items-center justify-center rounded-full border border-black/10 bg-white font-black text-foreground">
                         {line.quantity}
                       </div>
                       <button
                         type="button"
                         onClick={() => updateCartQuantity(line.menuItem.id, line.quantity + 1)}
-                        className="h-9 w-9 rounded-full border border-[color:var(--border-soft)] bg-white text-secondary/70"
+                        className="h-9 w-9 rounded-full bg-primary text-lg font-black text-foreground"
                       >
                         +
                       </button>
@@ -1140,7 +1141,7 @@ export default function CustomerMenuClient({
                           [line.menuItem.id]: !current[line.menuItem.id],
                         }))
                       }
-                      className="text-xs font-semibold text-secondary/70"
+                      className="text-xs font-black text-foreground"
                     >
                       {expandedNotes[line.menuItem.id] ? "Hide notes" : "Special instructions"}
                     </button>
@@ -1151,31 +1152,31 @@ export default function CustomerMenuClient({
                       value={line.specialNote}
                       onChange={(event) => updateCartNote(line.menuItem.id, event.target.value)}
                       placeholder="Add special instructions"
-                      className="mt-3 min-h-[44px] w-full rounded-2xl border border-secondary/15 bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      className="mt-3 min-h-[44px] w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                     />
                   ) : null}
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 rounded-3xl border border-secondary/10 bg-background p-4">
-              <div className="text-sm font-semibold text-secondary/70">Order notes</div>
+            <div className="mt-4 rounded-3xl border border-black/10 bg-neutral p-4">
+              <div className="text-sm font-black text-foreground">Order notes</div>
               <textarea
                 value={orderNotes}
                 onChange={(event) => setOrderNotes(event.target.value)}
                 placeholder="Optional notes for the whole order"
-                className="mt-2 min-h-[60px] w-full rounded-2xl border border-secondary/15 bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                className="mt-2 min-h-[58px] w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               />
 
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary/70">Subtotal</span>
+                  <span className="font-semibold text-secondary">Subtotal</span>
                   <span className="font-semibold text-foreground">
                     {formatMoney(subtotal, config.currency)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary/70">Tax ({config.tax_rate}%)</span>
+                  <span className="font-semibold text-secondary">Tax ({config.tax_rate}%)</span>
                   <span className="font-semibold text-foreground">
                     {formatMoney(tax, config.currency)}
                   </span>
@@ -1187,13 +1188,13 @@ export default function CustomerMenuClient({
               </div>
 
               {unavailableCartItemIds.length > 0 ? (
-                <div className="mt-4 rounded-[1.25rem] border border-warning/25 bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
+                <div className="mt-4 rounded-[1.25rem] border border-warning/25 bg-warning/10 px-4 py-3 text-sm font-black text-foreground">
                   Some items are no longer available. Remove them to place your order.
                 </div>
               ) : null}
 
               {placeOrderError ? (
-                <div className="mt-4 rounded-[1.25rem] border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger">
+                <div className="mt-4 rounded-[1.25rem] border border-danger/25 bg-danger/5 px-4 py-3 text-sm font-bold text-foreground">
                   {placeOrderError}
                 </div>
               ) : null}

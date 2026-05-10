@@ -11,23 +11,23 @@ export interface ButtonProps
 }
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-60 shadow-[0_10px_24px_rgba(27,91,82,0.06)]";
+  "inline-flex items-center justify-center gap-2 rounded-full font-black transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary text-white hover:brightness-[1.03] border border-primary/12 shadow-[0_12px_26px_rgba(23,182,158,0.22)]",
+    "bg-primary text-foreground hover:brightness-[0.98] border border-black/10 shadow-[0_8px_18px_rgba(0,0,0,0.12)]",
   secondary:
-    "bg-white/88 text-primary hover:bg-white border border-primary/12 backdrop-blur-md shadow-[0_10px_22px_rgba(27,91,82,0.05)]",
+    "bg-white text-foreground hover:bg-neutral border border-black/10 shadow-[0_6px_16px_rgba(0,0,0,0.06)]",
   danger:
-    "bg-danger/92 text-white hover:brightness-[1.03] border border-danger/10",
+    "bg-danger text-white hover:brightness-[1.03] border border-danger/10",
   ghost:
-    "bg-white/64 text-primary hover:bg-white border border-[color:var(--border-soft)] backdrop-blur-md shadow-[0_10px_22px_rgba(27,91,82,0.04)]",
+    "bg-white text-foreground hover:bg-neutral border border-[color:var(--border-soft)] shadow-[0_6px_16px_rgba(0,0,0,0.04)]",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-9 px-4 text-sm",
-  md: "h-11 px-5 text-sm",
-  lg: "h-13 px-6 text-base",
+  sm: "h-9 px-4 text-xs",
+  md: "h-10 px-5 text-sm",
+  lg: "h-12 px-6 text-sm",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
